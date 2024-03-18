@@ -1,0 +1,380 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.FrmPriceUpdate..Create(BaseForm)
+Gui.FrmPriceUpdate..Caption("Update Open SO Pricing")
+Gui.FrmPriceUpdate..Size(805,130)
+Gui.FrmPriceUpdate..MinX(0)
+Gui.FrmPriceUpdate..MinY(0)
+Gui.FrmPriceUpdate..Position(0,0)
+Gui.FrmPriceUpdate..AlwaysOnTop(False)
+Gui.FrmPriceUpdate..FontName("Tahoma")
+Gui.FrmPriceUpdate..FontSize(8.25)
+Gui.FrmPriceUpdate..ControlBox(True)
+Gui.FrmPriceUpdate..MaxButton(True)
+Gui.FrmPriceUpdate..MinButton(True)
+Gui.FrmPriceUpdate..MousePointer(0)
+Gui.FrmPriceUpdate..Moveable(True)
+Gui.FrmPriceUpdate..Sizeable(True)
+Gui.FrmPriceUpdate..ShowInTaskBar(True)
+Gui.FrmPriceUpdate..TitleBar(True)
+Gui.FrmPriceUpdate..Event(UnLoad,FrmPriceUpdate_UnLoad)
+Gui.FrmPriceUpdate.lblFilePath.Create(Label,"File Path",True,41,13,0,27,18,True,0,"Tahoma",8.25,,0,0)
+Gui.FrmPriceUpdate.lblFilePath.BorderStyle(0)
+Gui.FrmPriceUpdate.txtFilePath.Create(TextBox,"",True,705,20,0,27,39,True,0,"Tahoma",8.25,,1)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Create(Button)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Enabled(True)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Visible(True)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Zorder(0)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Size(40,20)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Position(740,39)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Caption("^")
+Gui.FrmPriceUpdate.cmdFileBrwsr.FontName("Tahoma")
+Gui.FrmPriceUpdate.cmdFileBrwsr.FontSize(8.25)
+Gui.FrmPriceUpdate.cmdFileBrwsr.Event(Click,cmdFileBrwsr_Click)
+Gui.FrmPriceUpdate.cmdOk.Create(Button)
+Gui.FrmPriceUpdate.cmdOk.Enabled(True)
+Gui.FrmPriceUpdate.cmdOk.Visible(True)
+Gui.FrmPriceUpdate.cmdOk.Zorder(0)
+Gui.FrmPriceUpdate.cmdOk.Size(57,22)
+Gui.FrmPriceUpdate.cmdOk.Position(27,66)
+Gui.FrmPriceUpdate.cmdOk.Caption("OK")
+Gui.FrmPriceUpdate.cmdOk.FontName("Tahoma")
+Gui.FrmPriceUpdate.cmdOk.FontSize(8.25)
+Gui.FrmPriceUpdate.cmdOk.Event(Click,cmdOk_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.Global.bConOpen.Declare(Boolean, False)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Customer: Osmundson Mfg Co
+'Author: Brandon Medina 
+'Quote: 13045-0
+'About: Project allows customer to mass upload a spreadsheet containing pricing for parts with group codes. Once changed, these prices carry down to all affected open sales orders to reflect the new price. 
+Function.Intrinsic.UI.UsePixels ' Allows you to use Pixels instead of Twips throughout
+F.Intrinsic.Control.CallSub(CheckAndCreateCustomFolder)
+Gui.FrmPriceUpdate..Show
+
+Program.Sub.Main.End
+Program.Sub.FrmPriceUpdate_UnLoad.Start
+F.Intrinsic.Control.Try
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.FrmPriceUpdate_UnLoad.End
+Program.Sub.cmdOk_Click.Start
+F.Intrinsic.Control.Try
+	V.Local.bExists.Declare
+	V.Local.sFile.Declare
+	V.Local.iMaxRow.Declare
+	V.Local.sRet.Declare
+	V.Local.iFailedCount.Declare
+	V.Local.sMsg.Declare
+	V.Local.sDir.Declare
+	V.Local.sErrorFile.Declare
+	V.Local.sTableCheck.Declare
+	V.Local.i.Declare(Float)
+	V.Local.j.Declare(Float)
+	V.Local.sGroupCode.Declare
+	V.Local.sPart.Declare
+	V.Local.sLoc.Declare
+	V.Local.sEffDate.Declare
+	V.Local.sPricingMethod.Declare
+	V.Local.sExpDate.Declare
+	V.Local.sFlatFeePrice.Declare
+	V.Local.s1694Dummy.Declare
+	V.Local.s16106Dummy.Declare
+	V.Local.s30Dummy.Declare
+	V.Local.iDecIndex.Declare
+	V.Local.sLeft.Declare
+	V.Local.sRight.Declare
+	V.Local.sClipboard.Declare
+	V.Local.sTemp.Declare
+	
+	'Disable events 
+	F.Intrinsic.Control.BlockEvents
+	'Uploading Spreadsheet
+	F.Intrinsic.UI.InvokeWaitDialog("Uploading Spreadsheet...", "Please Wait")
+	
+	'Verify File Exists 
+	V.Local.sFile.Set(V.Screen.FrmPriceUpdate!txtFilePath.Text.Trim)
+	F.Intrinsic.File.Exists(V.Local.sFile, V.Local.bExists)
+	F.Intrinsic.Control.If(V.Local.bExists.Not)
+		F.Intrinsic.UI.Msgbox("File does not exist.", "Attention")
+		F.Intrinsic.Control.UnBlockEvents
+		F.Intrinsic.UI.CloseWaitDialog
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+
+	'Verify file is of correct type .xls or .xlsx
+	F.Intrinsic.File.GetExtensionComponent(V.Local.sFile, V.Local.sRet)
+	F.Intrinsic.Control.If(V.Local.sRet, <>, "xls", AND, V.Local.sRet, <>, "xlsx")
+		F.Intrinsic.UI.Msgbox("Only .xls or .xlsx files are accepted.", "Attention")
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+	
+	'Begin Reading Spreadsheet by row 
+	F.Automation.MSExcel.ReadSpreadsheet(V.Local.sFile, 31,, V.Local.sRet)
+	
+		'Reset all tables and views 
+	V.Local.sTableCheck.Set("dtExport*!*dtSave*!*dtError*!*dtMain*!*dtFiltered")
+	F.Intrinsic.String.Split(V.Local.sTableCheck, "*!*", V.Local.sTableCheck)
+	F.Intrinsic.Control.For(V.Local.i, 0, V.Local.sTableCheck.UBound, 1)
+		F.Intrinsic.Control.If(V.DataTable.[V.Local.sTableCheck(V.Local.i)].Exists)
+			F.Data.Datatable.Close(V.Local.sTableCheck(V.Local.i))
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i)
+	
+	F.ODBC.Connection!con.OpenCompanyConnection
+	V.Global.bConOpen.Set(True)	
+	
+	F.Data.Datatable.CreateFromString("dtExport", V.Local.sRet, "Group_Code*!*Part*!*Location*!*Effective_Date*!*Pricing_Method*!*Expiration_Date*!*Flat_Fee_Price*!*Quantity_Break_Quantity_1*!*Quantity_Break_Quantity_2*!*Quantity_Break_Quantity_3*!*Quantity_Break_Quantity_4*!*Quantity_Break_Quantity_5*!*Quantity_Break_Quantity_6*!*Quantity_Break_Quantity_7*!*Quantity_Break_Quantity_8*!*Quantity_Break_Quantity_9*!*Quantity_Break_Quantity_10*!*Quantity_Break_Price_1*!*Quantity_Break_Price_2*!*Quantity_Break_Price_3*!*Quantity_Break_Price_4*!*Quantity_Break_Price_5*!*Quantity_Break_Price_6*!*Quantity_Break_Price_7*!*Quantity_Break_Price_8*!*Quantity_Break_Price_9*!*Quantity_Break_Price_10*!*Comment_1*!*Comment_2*!*Comment_3*!*Comment_4", "String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String", "*!*", "$!$", True)
+		'Deletes column captions
+	F.Data.Datatable.DeleteRow("dtExport", 0)
+		'Add matching columns to filter & time stamp/user info to save to db later 
+	F.Data.Datatable.AddColumn("dtExport", "GCPMatch", "String", "N")
+	F.Data.Datatable.AddColumn("dtExport", "Chg_Date", "String", V.Ambient.Now.Formatyyyy-mm-dd)
+	F.Data.Datatable.AddColumn("dtExport", "Chg_Time", "String", V.Ambient.Now.FormatHh:Nn:Ss)
+	F.Data.Datatable.AddColumn("dtExport", "Chg_User", "String", V.Caller.User)
+	F.Data.Datatable.AddColumn("dtExport", "Chg_Pgm", "String", "GCG_6440")
+		'Use this to simultaneously match for valid group code, part, and combo of group code+part 
+	F.Data.Datatable.AddExpressionColumn("dtExport", "CodePart", "String", "TRIM(Group_Code) + TRIM(Part)")
+	
+	'Ensure data table Group code and Part columns are left and right trimmed. 
+	F.Intrinsic.Control.For(V.Local.i, 0, V.DataTable.dtExport.RowCount--, 1)
+		F.Data.DataTable.SetValue("dtExport", V.Local.i, "Group_Code", V.DataTable.dtExport(V.Local.i).Group_Code!FieldValTrim)
+		F.Data.DataTable.SetValue("dtExport", V.Local.i, "Part", V.DataTable.dtExport(V.Local.i).Part!FieldValTrim)
+	F.Intrinsic.Control.Next(V.Local.i)
+
+	'Dictionary using combo of group code and part to filter 
+	F.Data.Dictionary.CreateFromSQL("dictCodeParts", "con", "Select concat(rtrim(ltrim(CD)), rtrim(ltrim(PART))), 'Y' from OE_GRP_PRICING")
+	F.Data.Dictionary.SetDefaultReturn("dictCodeParts", "")
+	F.Data.Datatable.FillFromDictionary("dtExport", "dictCodeParts", "CodePart", "GCPMatch")
+	F.Data.Dictionary.Close("dictCodeParts")
+	
+	'Create filtered dataview (w valid inventory parts and group codes) Remove Pmatch and GCMatch to eventually send dtSave to SaveToDB
+ 	F.Data.DataView.Create("dtExport", "dvSave", 22, "GCPMatch='Y'", "")
+	F.Data.DataView.ToDataTable("dtExport", "dvSave", "dtSave", True)
+	
+		'Include time stamp and user info here. Mode 258 should just modify existing records 
+	F.Data.Datatable.SaveToDB("dtSave", "con", "OE_GRP_PRICING", "Group_Code*!*Part", 258, "Group_Code@!@CD*!*Part@!@PART*!*Flat_Fee_Price@!@FF_PRICE*!*Chg_Date@!@CHG_DATE*!*Chg_Time@!@CHG_TIME*!*Chg_User@!@CHG_USER*!*Chg_Pgm@!@CHG_PGM")
+	
+	'If some parts didn't match what they have in inventory, alert user and write error log 
+	F.Intrinsic.Control.If(V.DataTable.dtExport.RowCount, <>, V.DataTable.dtSave.RowCount)
+		F.Intrinsic.Math.Sub(V.DataTable.dtExport.RowCount, V.DataTable.dtSave.RowCount, V.Local.iFailedCount)
+		F.Data.DataView.Create("dtExport", "dvError", 22, "GCPMatch =''", "")
+		F.Data.DataView.ToDataTable("dtExport", "dvError", "dtError")
+		F.Intrinsic.String.Build("{0}\CUSTOM\6440\{1}\Error_Logs",V.Caller.GlobalDir,V.Caller.CompanyCode,V.Local.sDir)
+		F.Intrinsic.String.Build("{0}\FailedParts{1}.csv", V.Local.sDir, V.Ambient.Now.FormatYYYYMMDDHHNNSS, V.Local.sErrorFile)
+		F.Data.Datatable.SaveToCSV("dtError", V.Local.sErrorFile, True)
+		F.Intrinsic.String.Build("A total of {0} record(s) did not upload successfully. {1}Please check Error log at {2} to view which parts were not uploaded.", V.Local.iFailedCount, V.Ambient.NewLine, V.Local.sDir, V.Local.sMsg)
+		F.Intrinsic.UI.Msgbox(V.Local.sMsg, "Attention")
+		F.Data.Datatable.Close("dtError")
+	F.Intrinsic.Control.EndIf
+	F.ODBC.Connection!con.Close
+	V.Global.bConOpen.Set(False)
+	
+	F.Intrinsic.UI.CloseWaitDialog
+	F.Intrinsic.Control.UnBlockEvents
+	
+	F.Intrinsic.Control.CallSub(UpdateOpenSO)
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdOk_Click.End
+Program.Sub.cmdFileBrwsr_Click.Start
+F.Intrinsic.Control.Try
+	V.Local.sFileExcel.Declare
+
+	'Open a file explorer window and look for an xls sheet
+	F.Intrinsic.UI.ShowOpenFileDialog("","*|*.*",V.Local.sFileExcel)
+	F.Intrinsic.Control.If(V.Local.sFileExcel,=,"***CANCEL***")
+		F.Intrinsic.UI.Msgbox("No File Was Selected")
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+	
+	Gui.FrmPriceUpdate.txtFilePath.Text(V.Local.sFileExcel)
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, v.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdFileBrwsr_Click.End
+
+Program.Sub.ErrorMsg.Start
+V.Local.sError.Declare
+
+'Gui.FrmPriceUpdate..Enabled(True)
+
+F.Intrinsic.Control.If(V.Global.bConOpen)
+	F.ODBC.Connection!con.Close
+F.Intrinsic.Control.EndIf	
+
+
+'Generic Error message.
+f.Intrinsic.String.Build("Project GCG_6440_UpdateOpenSOPricing.g2u {0}{0}Subroutine: {1}{0}Error: {2} with Description: {3}", v.Ambient.NewLine, v.Args.CurrentSub, v.Ambient.ErrorNumber, v.Ambient.ErrorDescription, v.Local.sError)
+f.Intrinsic.UI.Msgbox(v.Local.sError)
+F.Intrinsic.Control.End
+Program.Sub.ErrorMsg.End
+
+Program.Sub.CheckAndCreateCustomFolder.Start
+F.Intrinsic.Control.Try
+	V.Local.bExist.Declare
+	V.Local.sFile.Declare
+	V.Local.sDir.Declare
+	
+	'Check one folder level at a time and create as needed
+	F.Intrinsic.String.Build("{0}\CUSTOM",V.Caller.GlobalDir,V.Local.sDir)
+	F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExist)
+	F.Intrinsic.Control.If(V.Local.bExist.Not)
+		F.Intrinsic.File.CreateDir(V.Local.sDir)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Build("{0}\CUSTOM\6440",V.Caller.GlobalDir,V.Local.sDir)
+	F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExist)
+	F.Intrinsic.Control.If(V.Local.bExist.Not)
+		F.Intrinsic.File.CreateDir(V.Local.sDir)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Build("{0}\CUSTOM\6440\{1}",V.Caller.GlobalDir,V.Caller.CompanyCode,V.Local.sDir)
+	F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExist)
+	F.Intrinsic.Control.If(V.Local.bExist.Not)
+		F.Intrinsic.File.CreateDir(V.Local.sDir)
+	F.Intrinsic.Control.EndIf	
+	
+	F.Intrinsic.String.Build("{0}\CUSTOM\6440\{1}\Transaction Log",V.Caller.GlobalDir,V.Caller.CompanyCode,V.Local.sDir)
+	F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExist)
+	F.Intrinsic.Control.If(V.Local.bExist.Not)
+		F.Intrinsic.File.CreateDir(V.Local.sDir)
+	F.Intrinsic.Control.EndIf
+	
+	'Create Error log directory 
+	F.Intrinsic.String.Build("{0}\CUSTOM\6440\{1}\Error_Logs",V.Caller.GlobalDir,V.Caller.CompanyCode,V.Local.sDir)
+	F.Intrinsic.File.DirExists(V.Local.sDir, V.Local.bExist)
+	F.Intrinsic.Control.If(V.Local.bExist.Not)
+		F.Intrinsic.File.CreateDir(V.Local.sDir)
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.CheckAndCreateCustomFolder.End
+
+Program.Sub.UpdateOpenSO.Start
+F.Intrinsic.Control.Try
+	V.Local.sLog.Declare
+	V.Local.sColumns.Declare
+	V.Local.sRet.Declare
+	V.Local.sFile.Declare
+	V.Local.sRetCode.Declare
+	
+	F.Intrinsic.UI.InvokeWaitDialog("Updating all affected open order lines...", "Please Wait")
+	F.ODBC.Connection!con.OpenCompanyConnection
+	V.Global.bConOpen.Set(True)
+
+	'V_ORDER_LINES A
+	'V_ORDER_HEADER B 
+	'V_CUSTOMER_SALES C NOT USED
+	'OE_GRP_PRICING D
+	'Create table w/ all open order lines that have group price on the line not match what is in OE_GRP_PRICING table 
+	'F.Data.Datatable.CreateFromSQL("dtMain", "con", "select A.ORDER_NO, A.RECORD_NO, A.PRICE as OLD_PRICE, D.FF_PRICE as NEW_PRICE, rtrim(A.PART) as PART, A.DESCRIPTION, B.CUSTOMER, B.PRIMARY_GRP from V_ORDER_LINES A inner join V_ORDER_HEADER B on A.ORDER_NO = B.ORDER_NO inner join OE_GRP_PRICING D on A.PART = D.PART and A.LOCATION = D.LOCN where A.PRICE <> D.FF_PRICE", True)
+	F.Data.Datatable.CreateFromSQL("dtMain", "con", "select A.ORDER_NO, A.RECORD_NO, A.PRICE as OLD_PRICE, D.FF_PRICE as NEW_PRICE, rtrim(A.PART) as PART, A.DESCRIPTION, B.CUSTOMER, B.PRIMARY_GRP from V_ORDER_LINES A inner join V_ORDER_HEADER B on A.ORDER_NO = B.ORDER_NO inner join OE_GRP_PRICING D on A.PART = D.PART and A.LOCATION = D.LOCN and B.PRIMARY_GRP = D.CD where A.PRICE <> D.FF_PRICE", True)
+	
+	F.ODBC.Connection!con.Close
+	V.Global.bConOpen.Set(False)
+
+	'Data tables/views open 
+	'dtSave: Contents of dtExport, filtered to ensure it only contains valid inventory parts & Group codes 
+	'dtExport: Uploaded price data from spreadsheet 
+	
+	'Filter dtMain to only those records from the uploaded spreadsheet and send to new dataview 
+	F.Data.Datatable.AddColumn("dtMain", "GCPMatch", "String", "")
+	F.Data.Datatable.AddExpressionColumn("dtMain", "CodePart2", "String","PRIMARY_GRP + PART")
+	F.Data.Dictionary.CreateFromDataTable("dictUploadedParts", "dtSave", "CodePart", "GCPMatch", 2)
+	F.Data.Dictionary.SetDefaultReturn("dictUploadedParts", "")
+	
+	F.Data.Datatable.FillFromDictionary("dtMain", "dictUploadedParts", "CodePart2", "GCPMatch")
+	F.Data.Dictionary.Close("dictUploadedParts")
+
+	F.Data.DataView.Create("dtMain", "dvFiltered", 22, "GCPMatch='Y'", "")
+	F.Data.DataView.ToDataTable("dtMain", "dvFiltered", "dtFiltered", True)
+	
+	F.Intrinsic.Control.If(V.DataTable.dtFiltered.RowCount, =, 0)
+		F.Intrinsic.UI.Msgbox("No sale order records found that need to be updated.", "Attention")
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+		
+	'Format data for Callwrapper. File expects line item type, order number,line number, 3 dummy value columns?, and price
+	'Will be using dtFiltered to do this. Add new columns that will be used to create string for callwrapper 
+	F.Data.Datatable.AddColumn("dtFiltered", "lType", "String", "L")
+	F.Data.Datatable.AddColumn("dtFiltered", "dmyclmn", "String", "")
+	F.Data.Datatable.AddColumn("dtFiltered", "PRICE_SF_1", "String", "")
+	
+		'Set Field list 
+	V.Local.sColumns.Set("lType*!*ORDER_NO*!*Lno*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*PRICE_SF_1*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn*!*dmyclmn")
+		'Format line record in table 
+	F.Data.Datatable.AddExpressionColumn("dtFiltered", "Lno", "String", "Substring(RECORD_NO, 1, 3)")
+		'Format Price in table 
+	F.Data.Datatable.SetValueFormat("dtFiltered", -1, "NEW_PRICE", "PRICE_SF_1", "0000000000.000000")
+		'Send to String
+	F.Data.DataView.Create("dtFiltered", "dvCallWrapper")
+		'Callwrapper expects values it's setting to be delimited by "," and futhermore between records w a newline
+	F.Data.DataView.ToString("dtFiltered", "dvCallWrapper", V.Local.sColumns, ",", V.Ambient.NewLine, V.Local.sRet)
+		'Remove decimals for callwrapper 
+	F.Intrinsic.String.Replace(V.Local.sRet, ".", "", V.Local.sRet)
+	
+	'Send data string to file (in file directory) and call callwrapper to update all sales order headers and lines 
+	F.Intrinsic.String.Build("{0}\SOUPDLINES.TXT", V.Caller.FilesDir, V.Local.sFile)
+	F.Intrinsic.File.String2File(V.Local.sFile, V.Local.sRet)
+	F.Global.Callwrapper.New("Update","Sales.UpdateOrderHeaderAndLinesByFile")
+	F.Global.Callwrapper.SetProperty("Update","Screenless",1)
+	F.Global.Callwrapper.SetProperty("Update","InputFileName","SOUPDLINES.TXT")
+	F.Global.CallWrapper.Run("Update")
+	F.Global.Callwrapper.GetProperty("Update", "Status", V.Local.sRetCode)
+	
+	F.Intrinsic.UI.CloseWaitDialog
+	
+	F.Intrinsic.Control.If(V.Local.sRetCode, =, "Success")
+		F.Intrinsic.UI.Msgbox("Upload Completed")
+		'Write log of prices changed 
+		F.Intrinsic.Control.CallSub(WriteAuditLog)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.UI.Msgbox("Upload Failed")
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.ExitSub
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.UpdateOpenSO.End
+
+Program.Sub.WriteAuditLog.Start
+F.Intrinsic.Control.Try
+	V.Local.sLogFile.Declare
+	
+	'Modify dtFiltered 
+	F.Data.Datatable.RemoveColumn("dtFiltered", "lType")
+	F.Data.Datatable.RemoveColumn("dtFiltered", "dmyclmn")
+	F.Data.Datatable.RemoveColumn("dtFiltered", "PRICE_SF_1")
+	F.Data.Datatable.RemoveColumn("dtFiltered", "GCPMatch")
+	F.Data.Datatable.RemoveColumn("dtFiltered", "CodePart2")
+	F.Data.Datatable.RemoveColumn("dtFiltered", "Lno")
+	
+	'Write to CSV 
+	F.Intrinsic.String.Build("{0}\CUSTOM\6440\{1}\Transaction Log\SO_PriceAuditReport_{2}.csv",V.Caller.GlobalDir,V.Caller.CompanyCode, V.Ambient.Now.FormatYYYYMMDDHHNNSS, V.Local.sLogFile)
+	F.Data.Datatable.SaveToCSV("dtFiltered", V.Local.sLogFile, True)
+	
+	'Need to automatically open up audit log file 
+	F.Intrinsic.Task.ShellExec(0,"Open",V.Local.sLogFile,"","",1)
+	
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMsg, CurrentSub, V.Ambient.CurrentSubroutine)
+F.Intrinsic.Control.EndTry
+Program.Sub.WriteAuditLog.End
+
+Program.Sub.Comments.Start
+${$5$}$3.0.0.0$}$1
+${$6$}$bmedina$}$20210908162211328$}$kOipCrsyLBVj2KoSwkcdK23ChxGVcBlE1sgf+ykExHoeuzjYatNLzT5IsCYjOJQV7rcU5yUsxbA=
+Program.Sub.Comments.End
